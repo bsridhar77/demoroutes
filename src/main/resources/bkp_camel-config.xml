@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:camel="http://camel.apache.org/schema/spring"
+       xsi:schemaLocation="
+         http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+         http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+
+  <!-- a rest service which uses binding to/from pojos -->
+  <bean id="pocRoutes" class="com.poc.routes.AppRouteBuilder"/>
+
+  
+  <!-- a Service Client Bean  for Agent Service -->
+  <bean id="agentClientBean" class="com.poc.microserviceclient.AgentClientBean"/>
+  
+  
+  <!-- a Service Client Bean  for Agent Service -->
+  <bean id="quoteClientBean" class="com.poc.microserviceclient.QuoteClientBean"/>
+  <bean id="quoteCacheBean" class="com.poc.cache.QuoteCacheBean"/>
+  
+  
+  <!-- a Service Client Bean  for Agent Service -->
+  <bean id="enrollmentClientBean" class="com.poc.microserviceclient.EnrollmentClientBean"/>
+  
+  <!-- a Service Client Bean  for Agent Service -->
+  <bean id="agentDashboardClientBean" class="com.poc.microserviceclient.AgentDashboardClientBean"/>
+  
+<bean id="MyAggregatorStrategy" class="com.poc.aggregation.strategy.MyStrategy"/>
+
+  <camelContext id="myCamel" xmlns="http://camel.apache.org/schema/spring">
+    <routeBuilder ref="pocRoutes"/>
+    
+    <route id="AgentDashboardRoute"> 
+		  <from uri="direct:AgentDashboardRoute"/> 
+		  <bean ref="quoteCacheBean" method="getQuotesByAgentId(${header.id})"/>
+		    <filter>
+				       <simple>${in.header.InCache} == 'test'</simple>
+				       <log message="Available in Cache "/>
+   			</filter>
+   			
+   			<filter>
+				       <simple>${in.header.InCache} == 'no'</simple>
+				       <log message="Not Available in Cache "/>
+   			
+						<!--   <multicast stopOnException="true" strategyRef="MyAggregatorStrategy">
+						  	<bean ref="quoteClientBean" method="getQuotesByAgentId(${header.id})"/>
+						  	<to uri="bean:enrollmentClientBean?method=getEnrollmentsByAgentId(${header.id})"/>
+						  </multicast>
+				 		  <log message="Not Yet Ready"/> -->
+ 		  </filter>
+<!--  		  <onException>
+				   <exception>java.lang.Exception</exception>
+				   <handled><constant>true</constant></handled>
+				   <transform>
+				   	<simple>Error occured: ${exception.message} - cannot process the message</simple>
+				   </transform>
+   					<log message="Exception happened!"/>
+		</onException>
+ -->	
+ </route>
+	 
+  </camelContext>
+
+</beans>

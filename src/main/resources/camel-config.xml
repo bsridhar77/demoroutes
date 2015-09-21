@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:camel="http://camel.apache.org/schema/spring"
+       xsi:schemaLocation="
+         http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+         http://camel.apache.org/schema/spring http://camel.apache.org/schema/spring/camel-spring.xsd">
+
+
+<bean id="quoteCacheBean" class="com.demo.cache.QuoteCacheBean"/>
+
+ 
+<bean id="quoteClientBean" class="com.demo.microserviceclient.QuoteClientBean"/>  
+<bean id="agentClientBean" class="com.demo.microserviceclient.AgentClientBean"/>
+<bean id="enrollmentClientBean" class="com.demo.microserviceclient.EnrollmentClientBean"/>
+  
+<bean id="MyAggregatorStrategy" class="com.demo.aggregation.strategy.MyStrategy"/>
+
+<!-- define the gson data format, where we configure the data format using the properties -->
+<bean id="gson" class="org.apache.camel.component.gson.GsonDataFormat">
+    <!-- we want to unmarshal to person pojo -->
+    <property name="unmarshalType" value="com.demo.model.Quote"/>
+    
+</bean>
+
+
+  <camelContext xmlns="http://camel.apache.org/schema/spring">
+
+
+    <restConfiguration component="servlet" bindingMode="auto" contextPath="RoutesDemoProject/rest" port="8080">
+      <dataFormatProperty key="prettyPrint" value="true"/>
+    </restConfiguration>
+
+    
+    <rest path="/agent" consumes="application/json" produces="application/json">
+      <description>Agent rest service</description>
+      
+		<get uri="/{id}">
+	        <description>Find agent Details by id</description>
+	        <to uri="direct:AgentRoute"/>
+      	</get>
+      
+      
+    </rest>
+    
+     <rest path="/quote" consumes="application/json" produces="application/json">
+      <description>Quote Rest service</description>
+		<get uri="/{id}">
+	        <description>Find Quote Details by id</description>
+	        <to uri="direct:QuoteRoute"/>
+      	</get>
+      
+      
+    </rest>
+    
+   <!--  <rest path="/quoteinter" consumes="application/json" produces="application/json">
+      <description>Quote Rest service</description>
+		<get uri="/{id}">
+	        <description>Find Quote Details by id</description>
+	        <to uri="direct:QuoteWithInterceptorsRoute"/>
+      	</get>
+      
+      
+    </rest> -->
+    
+	<rest path="/AgentEnrollment" consumes="application/json" produces="application/json">
+      <description>Agent Enrollment rest service</description>
+      <get uri="/{id}">
+        <description>Find agent Details and his/her Enrolment List by Agent id</description>
+      	<to uri="direct:AgentEnrollmentRoute"/>
+      </get>
+      
+	</rest>
+
+
+<route id="AgentEnrollmentRoute">
+	<from uri="direct:AgentEnrollmentRoute"/>
+	
+	<log message="Entering AgentEnrollmentRoute"/>
+	
+	<multicast stopOnException="true" strategyRef="MyAggregatorStrategy">
+		<to uri="bean:agentClientBean?method=getAgentDetails(${header.id})"/>
+		<to uri="bean:enrollmentClientBean?method=getEnrollmentsByAgentId(${header.id})"/>
+	</multicast>
+	
+	<log message="Leaving AgentEnrollmentRoute"/>
+	
+</route>
+
+<route id="AgentRoute">
+	<from uri="direct:AgentRoute"/>
+	<log message="Entering agentRoute..."/>
+	<to uri="bean:agentClientBean?method=getAgentDetails(${header.id})"/>
+	<log message="Leaving agentRoute."/>
+</route>
+
+<route id="QuoteRoute">
+	<from uri="direct:QuoteRoute"/>
+	<log message="Entering QuoteRoute..."/>
+	
+	<!--  
+	<to uri="bean:quoteCacheBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
+	-->
+	
+	<to uri="direct:CheckQuoteCacheRoute"/>
+	
+	<log message="cache status: ${in.header.InCache}"/>
+	
+	<when>
+		<simple>${in.header.InCache} == 'NO'</simple>
+		<log message="Not Available in Cache..."/>
+		<log message="Fetching from Service/DB..."/>
+		<to uri="bean:quoteClientBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
+		<!-- Service return in JSON ,So convert JSON to JAVA so that we can add to Cache -->
+		<unmarshal ref="gson"/>
+		<to uri="bean:quoteCacheBean?method=addQuoteByQuoteId(${body})"/>
+		<!-- Convert Java to JSON so that we can send JSON to client -->
+		<marshal ref="gson"/>
+		
+	</when>
+	
+	<log message="Leaving quoteRoute."/>
+</route>
+
+<!--  <route id="QuoteWithInterceptorsRoute">
+	<from uri="direct:QuoteWithInterceptorsRoute"/>
+	<log message="Entering QuoteWithInterceptorsRoute..."/>
+	
+	<interceptFrom>
+        <to uri="direct:CheckQuoteCacheRoute"/>
+    </interceptFrom>
+    
+    <when>
+		<simple>${in.header.InCache} == 'YES'</simple>
+	    <stop/>
+	</when>
+    
+	<log message="Not Available in Cache..."/>
+	<log message="Fetching from Service/DB..."/>
+	
+	<to uri="bean:quoteClientBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
+	
+	Service Returns in JSON ,So convert JSON to JAVA so that we can add to Cache
+	<unmarshal ref="gson"/>
+	
+	Add Response to Cache 
+	<to uri="bean:quoteCacheBean?method=addQuoteByQuoteId(${body})"/>
+	
+	 Convert Java to JSON so that we can send JSON to client
+	<marshal ref="gson"/>
+	
+	<log message="Leaving QuoteWithInterceptorsRoute"/>
+	
+</route> -->
+
+
+<route id="CheckQuoteCacheRoute">
+	<from uri="direct:CheckQuoteCacheRoute"/>
+	<log message="Entering CheckQuoteCacheRoute..."/>
+	<to uri="bean:quoteCacheBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
+	<log message="Leaving CheckQuoteCacheRoute..."/>
+</route>
+
+ </camelContext>
+
+</beans>

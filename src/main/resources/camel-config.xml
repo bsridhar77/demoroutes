@@ -12,6 +12,11 @@
 <bean id="quoteCacheBean" class="com.demo.cache.QuoteCacheBean"/>
 
  
+<bean id="planListingClientBean" class="com.demo.microserviceclient.PlanListingBean"/>
+<bean id="planListingCacheBean" class="com.demo.cache.PlanListingCacheBean"/>
+ 
+<bean id="planClientBean" class="com.demo.microserviceclient.PlanClientBean"/>
+ 
 <bean id="quoteClientBean" class="com.demo.microserviceclient.QuoteClientBean"/>  
 <bean id="agentClientBean" class="com.demo.microserviceclient.AgentClientBean"/>
 <bean id="enrollmentClientBean" class="com.demo.microserviceclient.EnrollmentClientBean"/>
@@ -29,12 +34,123 @@
   <camelContext xmlns="http://camel.apache.org/schema/spring">
 
 
+	 <!-- <interceptSendToEndpoint uri="mock:getPlans">
+        <log message="Intercepted!"/> 
+      <to uri="mock:CheckResolveFromCache"/>
+    </interceptSendToEndpoint> -->
+ 
+ <interceptFrom uri="direct:PlanListingRoute">
+ 	<to uri="direct:CheckResolveFromCache"/>
+ 	
+ 	<log message="Header InCache contains ${header.InCache}"/>
+ 		<when>
+            <simple>${header.InCache} contains 'Y'</simple>
+            <log message="Skipped Target Route, Resolved From Cache."/>
+            <stop/>
+        </when>
+		<log message="Cannot Resolve From Cache, Routing to target route..."/>
+ </interceptFrom>
+ 
     <restConfiguration component="servlet" bindingMode="auto" contextPath="RoutesDemoProject/rest" port="8080">
       <dataFormatProperty key="prettyPrint" value="true"/>
     </restConfiguration>
 
     
-    <rest path="/agent" consumes="application/json" produces="application/json">
+<!--     <rest path="/quote" consumes="application/json"  produces="application/json">
+      <description>Quote Workflow</description>
+      
+		<get uri="/{id}">
+	        <description>Find Quote Details by Quote Reference Number</description>
+	        <to uri="direct:QuoteDetailsRoute"/>
+      	</get>
+      	
+      	<get uri="/agent/{id}">
+	        <description>Find List of Quotes By Agent Id</description>
+	        <to uri="direct:AgentQuotesRoute"/>
+      	</get>
+      
+    </rest> -->
+         	<rest path="/planlisting" consumes="application/json"  produces="application/json">
+         	
+			<post uri="/hello" type="com.demo.model.PlanListingRequest">
+			        <to uri="direct:PlanListingRoute"/>
+		      	</post>
+	    </rest> 
+    
+    
+<route id="direct:CheckResolveFromCache">
+	<from uri="direct:CheckResolveFromCache"/>
+	<log message="Entering CheckResolveFromCache"/>
+	
+	<to uri="bean:planListingCacheBean?method=getPlanListingFromCache(${body})"/>
+	
+	<log message="Leaving CheckResolveFromCache"/>
+	<!-- <when>
+            <simple>${header.inputParam} contains 'Y'</simple>
+			<setHeader headerName="InCache">
+		    	<constant>Y</constant>        
+		  	</setHeader>
+	</when>
+	<when>
+            <simple>${header.inputParam} contains 'N'</simple>
+			<setHeader headerName="InCache">
+		    	<constant>N</constant>        
+		  	</setHeader>
+	</when> -->
+	
+	<log message="Leaving CheckResolveFromCache"/>
+</route>
+
+	 <route id="direct:PlanListingRoute">
+		<from uri="direct:PlanListingRoute"/>
+			 <to uri="mock:getPlans"/>
+			 <log message="Inside PlanListingRoute"/>
+			<!--  <to uri="mock:getRatings"/> -->
+	
+	<!-- Check if for the request received can be resolved from the cache based on key from the request
+	If YES , return from cache
+	Otherwise, fetch response as required based on the request
+	Cache the response and return it with a key based on the request
+	 -->
+	
+			<!-- <to uri="bean:planListingClientBean?method=getPlanListingByPlanUserDemographicsAndProductsForQuote(${body})"/> -->
+			
+			
+		<!-- 	Check the header value
+			If header value is "N" then
+				Proceed with execution of Orchestration Logic
+				Set the return from execution of Orchestration logic in cache
+			endif
+		 -->	
+	
+			 <!-- Get List of Plans based on User Demographics and Product Selection -->
+			<!-- <to uri="bean:planClientBean?method=getPlansByUserDemographicsAndProductsForQuote()"/> -->
+			
+			<!-- Get Ratings for Plan , User Demographics and Product Selection-->
+			<!-- <to uri="bean:ratingClientBean?method=getRatingsByPlanUserDemographicsAndProductsForQuote()"/> -->
+			
+	<!-- 	<log message="Leaving PlanListingRoute"/> -->
+		
+	</route>
+
+
+<!--     
+<route id="QuoteDetailsRoute">
+	
+	<from uri="direct:QuoteDetailsRoute"/>
+	
+	<log message="Entering QuoteDetailsRoute"/>
+
+		<to uri="bean:quoteClientBean?method=getQuoteClientsByQuoteReferenceNumber(${header.id})"/>
+		<to uri="bean:planClientBean?method=getPlanDetailsByPlanNumber(${header.id})"/>
+	
+	<log message="Leaving QuoteDetailsRoute"/>
+	
+</route>
+ -->
+    
+    
+    <!-- <rest path="/agent" consumes="application/json" produces="application/json">
       <description>Agent rest service</description>
       
 		<get uri="/{id}">
@@ -43,17 +159,9 @@
       	</get>
       
       
-    </rest>
+    </rest> -->
     
-     <rest path="/quote" consumes="application/json" produces="application/json">
-      <description>Quote Rest service</description>
-		<get uri="/{id}">
-	        <description>Find Quote Details by id</description>
-	        <to uri="direct:QuoteRoute"/>
-      	</get>
-      
-      
-    </rest>
+     
     
    <!--  <rest path="/quoteinter" consumes="application/json" produces="application/json">
       <description>Quote Rest service</description>
@@ -65,7 +173,7 @@
       
     </rest> -->
     
-	<rest path="/AgentEnrollment" consumes="application/json" produces="application/json">
+<!-- 	<rest path="/AgentEnrollment" consumes="application/json" produces="application/json">
       <description>Agent Enrollment rest service</description>
       <get uri="/{id}">
         <description>Find agent Details and his/her Enrolment List by Agent id</description>
@@ -73,9 +181,9 @@
       </get>
       
 	</rest>
+ -->
 
-
-<route id="AgentEnrollmentRoute">
+<!-- <route id="AgentEnrollmentRoute">
 	<from uri="direct:AgentEnrollmentRoute"/>
 	
 	<log message="Entering AgentEnrollmentRoute"/>
@@ -100,9 +208,9 @@
 	<from uri="direct:QuoteRoute"/>
 	<log message="Entering QuoteRoute..."/>
 	
-	<!--  
+	 
 	<to uri="bean:quoteCacheBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
-	-->
+	
 	
 	<to uri="direct:CheckQuoteCacheRoute"/>
 	
@@ -113,10 +221,10 @@
 		<log message="Not Available in Cache..."/>
 		<log message="Fetching from Service/DB..."/>
 		<to uri="bean:quoteClientBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
-		<!-- Service return in JSON ,So convert JSON to JAVA so that we can add to Cache -->
+		Service return in JSON ,So convert JSON to JAVA so that we can add to Cache
 		<unmarshal ref="gson"/>
 		<to uri="bean:quoteCacheBean?method=addQuoteByQuoteId(${body})"/>
-		<!-- Convert Java to JSON so that we can send JSON to client -->
+		Convert Java to JSON so that we can send JSON to client
 		<marshal ref="gson"/>
 		
 	</when>
@@ -124,7 +232,7 @@
 	<log message="Leaving quoteRoute."/>
 </route>
 
-<!--  <route id="QuoteWithInterceptorsRoute">
+ <route id="QuoteWithInterceptorsRoute">
 	<from uri="direct:QuoteWithInterceptorsRoute"/>
 	<log message="Entering QuoteWithInterceptorsRoute..."/>
 	
@@ -153,7 +261,7 @@
 	
 	<log message="Leaving QuoteWithInterceptorsRoute"/>
 	
-</route> -->
+</route>
 
 
 <route id="CheckQuoteCacheRoute">
@@ -162,7 +270,7 @@
 	<to uri="bean:quoteCacheBean?method=getQuoteDetailsByQuoteId(${header.id})"/>
 	<log message="Leaving CheckQuoteCacheRoute..."/>
 </route>
-
+ -->
  </camelContext>
 
 </beans>
